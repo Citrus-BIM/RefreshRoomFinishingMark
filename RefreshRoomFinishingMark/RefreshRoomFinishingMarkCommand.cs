@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace RefreshRoomFinishingMark
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-    class RefreshRoomFinishingMarkCommand : IExternalCommand
+    public class RefreshRoomFinishingMarkCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -114,44 +114,58 @@ namespace RefreshRoomFinishingMark
             using (Transaction t = new Transaction(doc))
             {
                 t.Start("Обновление марок помещений");
+
                 foreach (Room room in roomList)
                 {
-                    if (room.LookupParameter("АР_ТипПола_Ключ").AsElementId().IntegerValue == -1)
-                    {
+                    var pFloorKey = room.LookupParameter("АР_ТипПола_Ключ");
+                    long floorKeyVal =
+#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
+                        (pFloorKey?.AsElementId() == null) ? 0 : pFloorKey.AsElementId().IntegerValue;
+#else
+                        (pFloorKey?.AsElementId() == null) ? 0 : pFloorKey.AsElementId().Value;
+#endif
+                    if (floorKeyVal == -1)
                         room.get_Parameter(floorTypePluginParamGUID).Set("");
-                    }
                     else
-                    {
-                        room.get_Parameter(floorTypePluginParamGUID).Set(room.LookupParameter("АР_ТипПола_Ключ").AsValueString());
-                    }
+                        room.get_Parameter(floorTypePluginParamGUID).Set(pFloorKey?.AsValueString() ?? "");
 
-                    if (room.LookupParameter("АР_ОтделкаСтен_Ключ").AsElementId().IntegerValue == -1)
-                    {
+                    var pWallKey = room.LookupParameter("АР_ОтделкаСтен_Ключ");
+                    long wallKeyVal =
+#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
+                        (pWallKey?.AsElementId() == null) ? 0 : pWallKey.AsElementId().IntegerValue;
+#else
+                        (pWallKey?.AsElementId() == null) ? 0 : pWallKey.AsElementId().Value;
+#endif
+                    if (wallKeyVal == -1)
                         room.get_Parameter(wallFinishPluginParamGUID).Set("");
-                    }
                     else
-                    {
-                        room.get_Parameter(wallFinishPluginParamGUID).Set(room.LookupParameter("АР_ОтделкаСтен_Ключ").AsValueString());
-                    }
+                        room.get_Parameter(wallFinishPluginParamGUID).Set(pWallKey?.AsValueString() ?? "");
 
-                    if (room.LookupParameter("АР_ОтделкаСтенСнизу_Ключ").AsElementId().IntegerValue == -1)
-                    {
+                    var pBottomWallKey = room.LookupParameter("АР_ОтделкаСтенСнизу_Ключ");
+                    long bottomWallKeyVal =
+#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
+                        (pBottomWallKey?.AsElementId() == null) ? 0 : pBottomWallKey.AsElementId().IntegerValue;
+#else
+                        (pBottomWallKey?.AsElementId() == null) ? 0 : pBottomWallKey.AsElementId().Value;
+#endif
+                    if (bottomWallKeyVal == -1)
                         room.get_Parameter(bottomWallFinishPluginParamGUID).Set("");
-                    }
                     else
-                    {
-                        room.get_Parameter(bottomWallFinishPluginParamGUID).Set(room.LookupParameter("АР_ОтделкаСтенСнизу_Ключ").AsValueString());
-                    }
+                        room.get_Parameter(bottomWallFinishPluginParamGUID).Set(pBottomWallKey?.AsValueString() ?? "");
 
-                    if (room.LookupParameter("АР_ОтделкаПотолка_Ключ").AsElementId().IntegerValue == -1)
-                    {
+                    var pCeilingKey = room.LookupParameter("АР_ОтделкаПотолка_Ключ");
+                    long ceilingKeyVal =
+#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
+                        (pCeilingKey?.AsElementId() == null) ? 0 : pCeilingKey.AsElementId().IntegerValue;
+#else
+                        (pCeilingKey?.AsElementId() == null) ? 0 : pCeilingKey.AsElementId().Value;
+#endif
+                    if (ceilingKeyVal == -1)
                         room.get_Parameter(ceilingFinishPluginParamGUID).Set("");
-                    }
                     else
-                    {
-                        room.get_Parameter(ceilingFinishPluginParamGUID).Set(room.LookupParameter("АР_ОтделкаПотолка_Ключ").AsValueString());
-                    }
+                        room.get_Parameter(ceilingFinishPluginParamGUID).Set(pCeilingKey?.AsValueString() ?? "");
                 }
+
                 t.Commit();
             }
 
