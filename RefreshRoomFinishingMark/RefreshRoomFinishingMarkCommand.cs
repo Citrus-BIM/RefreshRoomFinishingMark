@@ -15,13 +15,16 @@ namespace RefreshRoomFinishingMark
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            try
-            {
-                _ = GetPluginStartInfo();
-            }
-            catch { }
+            _ = GetPluginStartInfo();
 
-            Document doc = commandData.Application.ActiveUIDocument.Document;
+            UIDocument? uiDoc = commandData.Application.ActiveUIDocument;
+            if (uiDoc?.Document == null)
+            {
+                message = "Нет активного документа.";
+                return Result.Cancelled;
+            }
+
+            Document doc = uiDoc.Document;
             int.TryParse(commandData.Application.Application.VersionNumber, out int versionNumber);
             if (versionNumber >= 2022)
             {
@@ -29,7 +32,7 @@ namespace RefreshRoomFinishingMark
                 //return Result.Cancelled;
             }
 
-            Room roomFromParam = new FilteredElementCollector(doc)
+            Room? roomFromParam = new FilteredElementCollector(doc)
                 .WhereElementIsNotElementType()
                 .OfClass(typeof(SpatialElement))
                 .Where(e => e.GetType() == typeof(Room))
@@ -118,48 +121,28 @@ namespace RefreshRoomFinishingMark
                 foreach (Room room in roomList)
                 {
                     var pFloorKey = room.LookupParameter("АР_ТипПола_Ключ");
-                    long floorKeyVal =
-#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
-                        (pFloorKey?.AsElementId() == null) ? 0 : pFloorKey.AsElementId().IntegerValue;
-#else
-                        (pFloorKey?.AsElementId() == null) ? 0 : pFloorKey.AsElementId().Value;
-#endif
+                    long floorKeyVal = GetKeyElementIdNumeric(pFloorKey);
                     if (floorKeyVal == -1)
                         room.get_Parameter(floorTypePluginParamGUID).Set("");
                     else
                         room.get_Parameter(floorTypePluginParamGUID).Set(pFloorKey?.AsValueString() ?? "");
 
                     var pWallKey = room.LookupParameter("АР_ОтделкаСтен_Ключ");
-                    long wallKeyVal =
-#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
-                        (pWallKey?.AsElementId() == null) ? 0 : pWallKey.AsElementId().IntegerValue;
-#else
-                        (pWallKey?.AsElementId() == null) ? 0 : pWallKey.AsElementId().Value;
-#endif
+                    long wallKeyVal = GetKeyElementIdNumeric(pWallKey);
                     if (wallKeyVal == -1)
                         room.get_Parameter(wallFinishPluginParamGUID).Set("");
                     else
                         room.get_Parameter(wallFinishPluginParamGUID).Set(pWallKey?.AsValueString() ?? "");
 
                     var pBottomWallKey = room.LookupParameter("АР_ОтделкаСтенСнизу_Ключ");
-                    long bottomWallKeyVal =
-#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
-                        (pBottomWallKey?.AsElementId() == null) ? 0 : pBottomWallKey.AsElementId().IntegerValue;
-#else
-                        (pBottomWallKey?.AsElementId() == null) ? 0 : pBottomWallKey.AsElementId().Value;
-#endif
+                    long bottomWallKeyVal = GetKeyElementIdNumeric(pBottomWallKey);
                     if (bottomWallKeyVal == -1)
                         room.get_Parameter(bottomWallFinishPluginParamGUID).Set("");
                     else
                         room.get_Parameter(bottomWallFinishPluginParamGUID).Set(pBottomWallKey?.AsValueString() ?? "");
 
                     var pCeilingKey = room.LookupParameter("АР_ОтделкаПотолка_Ключ");
-                    long ceilingKeyVal =
-#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
-                        (pCeilingKey?.AsElementId() == null) ? 0 : pCeilingKey.AsElementId().IntegerValue;
-#else
-                        (pCeilingKey?.AsElementId() == null) ? 0 : pCeilingKey.AsElementId().Value;
-#endif
+                    long ceilingKeyVal = GetKeyElementIdNumeric(pCeilingKey);
                     if (ceilingKeyVal == -1)
                         room.get_Parameter(ceilingFinishPluginParamGUID).Set("");
                     else
@@ -172,34 +155,55 @@ namespace RefreshRoomFinishingMark
             TaskDialog.Show("Revit", "Обработка завершена!");
             return Result.Succeeded;
         }
+        /// <summary>
+        /// Числовое значение ключа спецификации: 0 если параметра нет или ElementId отсутствует; -1 для InvalidElementId; иначе IntegerValue/Value.
+        /// </summary>
+        private static long GetKeyElementIdNumeric(Parameter? p)
+        {
+            if (p == null) return 0;
+#if R2019 || R2020 || R2021 || R2022 || R2023 || R2024 || R2025
+            ElementId id = p.AsElementId();
+            if (id == null) return 0;
+            return id.IntegerValue;
+#else
+            return p.AsElementId().Value;
+#endif
+        }
+
         private static async Task GetPluginStartInfo()
         {
-            // Получаем сборку, в которой выполняется текущий код
-            Assembly thisAssembly = Assembly.GetExecutingAssembly();
-            string assemblyName = "RefreshRoomFinishingMark";
-            string assemblyNameRus = "Обновить марки отделки";
-            string assemblyFolderPath = Path.GetDirectoryName(thisAssembly.Location);
-
-            int lastBackslashIndex = assemblyFolderPath.LastIndexOf("\\");
-            string dllPath = assemblyFolderPath.Substring(0, lastBackslashIndex + 1) + "PluginInfoCollector\\PluginInfoCollector.dll";
-
-            Assembly assembly = Assembly.LoadFrom(dllPath);
-            Type type = assembly.GetType("PluginInfoCollector.InfoCollector");
-
-            if (type != null)
+            try
             {
-                // Создание экземпляра класса
-                object instance = Activator.CreateInstance(type);
+                Assembly thisAssembly = Assembly.GetExecutingAssembly();
+                string assemblyName = "RefreshRoomFinishingMark";
+                string assemblyNameRus = "Обновить марки отделки";
+                string? assemblyFolderPath = Path.GetDirectoryName(thisAssembly.Location);
+                if (string.IsNullOrEmpty(assemblyFolderPath)) return;
 
-                // Получение метода CollectPluginUsageAsync
-                var method = type.GetMethod("CollectPluginUsageAsync");
+                string? parentFolder = Directory.GetParent(assemblyFolderPath)?.FullName;
+                if (string.IsNullOrEmpty(parentFolder)) return;
 
-                if (method != null)
+                string dllPath = Path.Combine(parentFolder, "PluginInfoCollector", "PluginInfoCollector.dll");
+                if (!File.Exists(dllPath)) return;
+
+                Assembly assembly = Assembly.LoadFrom(dllPath);
+                Type? type = assembly.GetType("PluginInfoCollector.InfoCollector");
+
+                if (type != null)
                 {
-                    // Вызов асинхронного метода через reflection
-                    Task task = (Task)method.Invoke(instance, new object[] { assemblyName, assemblyNameRus });
-                    await task;  // Ожидание завершения асинхронного метода
+                    object? instance = Activator.CreateInstance(type);
+                    var method = type.GetMethod("CollectPluginUsageAsync");
+
+                    if (method != null && instance != null)
+                    {
+                        Task task = (Task)method.Invoke(instance, new object[] { assemblyName, assemblyNameRus })!;
+                        await task.ConfigureAwait(false);
+                    }
                 }
+            }
+            catch
+            {
+                // Сбор телеметрии не должен влиять на работу команды.
             }
         }
     }
